@@ -40,7 +40,7 @@ private:
 		iterator right() const {
 			return iterator(_node->right);
 		}
-		
+
 		bool isFake() const {
 			return _node == nullptr || _node->isFake;
 		}
@@ -61,7 +61,7 @@ private:
 			return *this;
 		}
 
-		iterator & operator++() {
+		iterator& operator++() {
 			if (isFake()) {
 				step_left();
 				return *this;
@@ -109,6 +109,20 @@ private:
 			--this;
 			return iter;
 		}
+
+		iterator operator+(int a) const {
+			iterator tmp = iterator(_node);
+			for (int i = 0; i < a; i++) ++tmp;
+			return tmp;
+		}
+
+		iterator operator-(int a) const {
+			iterator tmp = iterator(_node);
+			for (int i = 0; i < a; i++) --tmp;
+			return tmp;
+		}
+
+
 
 		friend bool operator== (const iterator& it1, const iterator& it2)
 		{
@@ -205,7 +219,7 @@ private:
 		std::allocator_traits<Alloc>::deallocate(alloc, node, 1);
 
 	}
-	
+
 
 
 
@@ -233,9 +247,112 @@ private:
 		if (original->left != original_fake) current->left->parent = current;
 		return current;
 	}
+
+	static bool checkByRecursion(Node* node1, Node* node2) {
+		if (node1->isFake && node2->isFake) {
+			return true;
+		}
+
+		if (node1->isFake || node2->isFake) {
+			return false;
+		}
+
+		return (node1->data == node2->data) && checkByRecursion(node1->left, node2->left) && checkByRecursion(node1->right, node2->right);
+	}
+	void swapWithMostLeft(iterator node) {
+		iterator toSwap = node.left().GetMax();
+
+		//case 1
+		if (node.left() == toSwap) {
+			toSwap.setParent(node.parent());
+			node.setLeft(toSwap.left());
+
+			if (!toSwap.left().isFake()) {
+				toSwap.left().setParent(node);
+			}
+			else {
+				if (fake_root->left == toSwap.node()) {
+					fake_root->left = node.node();
+				}
+			}
+			toSwap.setLeft(node);
+
+			node.right().setParent(toSwap);
+			toSwap.setRight(node.right());
+			node.node()->right = fake_root;
+
+			if (!node.parent().isFake()) {
+				if (node.isRight()) {
+					node.parent().setRight(toSwap);
+				}
+				else {
+					node.parent().setLeft(toSwap);
+				}
+			}
+			else {
+				if (fake_root->parent == node.node()) {
+					fake_root->parent = toSwap.node();
+				}
+			}
+			node.setParent(toSwap);
+			return;
+
+		}
+		//case 2
+		toSwap.parent().setRight(node);
+
+		if (node.parent().isFake()) {
+			fake_root->parent = toSwap.node();
+		}
+		else {
+			if (node.isRight()) {
+				node.parent().setRight(toSwap);
+			}
+			else {
+				node.setLeft(toSwap);
+			}
+		}
+		node.right().setParent(toSwap);
+		toSwap.setRight(node.right());
+		node.node()->right = fake_root;
+
+		iterator temp = node.left();
+
+		if (!toSwap.left().isFake()) {
+			toSwap.left().setParent(node);
+		}
+		node.setLeft(toSwap.left());
+
+		temp.setParent(toSwap);
+		toSwap.setLeft(temp);
+
+		iterator temp1 = node.parent();
+
+		node.setParent(toSwap.parent());
+		toSwap.setParent(temp1);
+	}
+
+	void printNode(const Node* current, int width = 0) const {
+		std::string spaces = "";
+		for (int i = 0; i < width; ++i) spaces += "  ";
+		if (current == fake_root) {
+			std::cout << spaces << "Fake\n";
+			return;
+		}
+		printNode(current->right, width + 3);
+		std::cout << spaces << current->data << std::endl;
+		printNode(current->left, width + 3);
+	}
 public:
 
-	//Итераторы
+	friend bool operator==(const BinarySearchTree& first, const BinarySearchTree& second) {
+		return (first._size == second._size) && checkByRecursion(first.fake_root->parent, second.fake_root->parent);
+	}
+
+	friend bool operator!=(const BinarySearchTree& first, const BinarySearchTree& second) {
+		return !(first==second);
+	}
+	
 	iterator begin() const {
 		return iterator(fake_root->left);
 	}
@@ -338,85 +455,15 @@ public:
 		clearNode(leaf.node());
 	}
 
-	void swapWithMostLeft(iterator node) {
-		iterator toSwap = node.left().GetMax();
-
-		//case 1
-		if (node.left() == toSwap) {
-			toSwap.setParent(node.parent());
-			node.setLeft(toSwap.left());
-
-			if (!toSwap.left().isFake()) {
-				toSwap.left().setParent(node);
-			}
-			else {
-				if (fake_root->left == toSwap.node()) {
-					fake_root->left = node.node();
-				}
-			}
-			toSwap.setLeft(node);
-
-			node.right().setParent(toSwap);
-			toSwap.setRight(node.right());
-			node.node()->right = fake_root;
-
-			if (!node.parent().isFake()) {
-				if (node.isRight()) {
-					node.parent().setRight(toSwap);
-				}
-				else {
-					node.parent().setLeft(toSwap);
-				}
-			}
-			else {
-				if (fake_root->parent == node.node()) {
-					fake_root->parent = toSwap.node();
-				}
-			}
-			node.setParent(toSwap);
-			return;
-
-		}
-		//case 2
-		toSwap.parent().setRight(node);
-
-		if (node.parent().isFake()) {
-			fake_root->parent = toSwap.node();
-		}
-		else {
-			if (node.isRight()) {
-				node.parent().setRight(toSwap);
-			}
-			else {
-				node.setLeft(toSwap);
-			}
-		}
-		node.right().setParent(toSwap);
-		toSwap.setRight(node.right());
-		node.node()->right = fake_root;
-
-		iterator temp = node.left();
-
-		if (!toSwap.left().isFake()) {
-			toSwap.left().setParent(node);
-		}
-		node.setLeft(toSwap.left());
-
-		temp.setParent(toSwap);
-		toSwap.setLeft(temp);
-
-		iterator temp1 = node.parent();
-
-		node.setParent(toSwap.parent());
-		toSwap.setParent(temp1);
-
-
-	}
+	
 
 	void erase(iterator it) {
 		if (it.isFake()) return;
 
-		else if (it.right().isFake() && it.left().isFake()) erase_leaf(it);
+		else if (it.right().isFake() && it.left().isFake()) {
+			erase_leaf(it);
+			return;
+		}
 
 		else if (it.right().isFake()) {
 			if (it.parent().isFake()) {
@@ -450,6 +497,7 @@ public:
 					fake_root->left = it.right().GetMin().node();
 					clearNode(it.node());
 					--_size;
+					return;
 				}
 				else {
 					it.right().setParent(it.parent());
@@ -464,6 +512,7 @@ public:
 					}
 					--_size;
 					clearNode(it.node());
+					return;
 				}
 			}
 		}
@@ -490,42 +539,52 @@ public:
 		return cur;
 	}
 
+	T min() const {
+		return fake_root->left->data;
+	}
+
+	T max() const {
+		return fake_root->right->data;
+	}
+
+	T lowerBound(const T& value) const {
+		iterator current(fake_root->parent);
+		iterator result(fake_root->parent);;
+
+		while (!current.isFake()) {
+			if (!comparator(value, *current)) {
+				result = current;
+				current = current.right();
+			}
+			else
+				current = current.left();
+		}
+
+		return *result;
+	}
+
+	T upper_bound(const T& value) const {
+
+		iterator current(fake_root->parent);
+		iterator result(fake_root->parent);;
+		while (!current.isFake()) {
+
+			if (comparator(value, *current)) {
+				result = current;
+				current = current.left();
+			}
+			else
+				current = current.right();
+		}
+
+		return *result;
+	}
+
 	void erase(const T& value) {
 		iterator iter = find(value);
 		if (!iter.isFake()) erase(iter);
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	void printNode(const Node* current, int width = 0) const {
-		std::string spaces = "";
-		for (int i = 0; i < width; ++i) spaces += "  ";
-		if (current == fake_root) {
-			std::cout << spaces << "Fake\n";
-			return;
-		}
-		printNode(current->right, width + 3);
-		std::cout << spaces << current->data << std::endl;
-		printNode(current->left, width + 3);
-	}
 
 	void PrintTree() const {
 		printNode(fake_root->parent);
@@ -534,5 +593,5 @@ public:
 
 	size_t size() const { return _size; }
 
-	
+
 };
