@@ -2,33 +2,55 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <algorithm>
 
 template<typename T, class Comparator = std::less<T>, class Allocator = std::allocator<T>>
 class BinarySearchTree {
 
-private:
+public:
+	using key_type = T;
+	using key_compare = Comparator;
+	using value_type = T;
+	using value_compare = Comparator;
+	using allocator_type = Allocator;
+	using size_type = size_t;
+	using difference_type = ptrdiff_t;
+	using pointer = value_type*;
+	using const_pointer = const value_type*;
+	using reference = value_type&;
+	using const_reference = const value_type&;
+
+//private:
 
 	class Node {
 	public:
 		Node* parent;
 		Node* left;
 		Node* right;
-		T data;
+		value_type data;
 
 		bool isFake = false;
 
-		Node(T value = T(), Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(value) {}
+		Node(value_type value = value_type(), Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(value) {}
 
-		/*bool operator==(Node* other) {
+		bool operator==(const Node* other) const {
 			return (data == other->data);
-		}*/
+		}
+
 	};
+public:
 	class iterator {
-		friend class BinarySearchTree<T>;
-	protected:
+	public:
+		friend class BinarySearchTree<value_type>;
+		using iterator_category = std::bidirectional_iterator_tag;
+		using value_type = BinarySearchTree::value_type;
+		using difference_type = BinarySearchTree::difference_type;
+		using pointer = BinarySearchTree::const_pointer;
+		using reference = BinarySearchTree::const_reference;
+	//protected:
 		Node* _node;
 		explicit iterator(Node* nd) : _node(nd) {};
-		Node* node() {
+		Node* &node() {
 			return _node;
 		}
 		iterator parent() const {
@@ -45,8 +67,11 @@ private:
 			return _node == nullptr || _node->isFake;
 		}
 	public:
-		const T& operator*() {
+		const_reference operator*() {
 			return _node->data;
+		}
+		pointer operator->() {
+			return *_node;
 		}
 		iterator& step_up() {
 			_node = _node->parent;
@@ -101,12 +126,12 @@ private:
 
 		iterator operator++(int) {
 			iterator iter(*this);
-			++this;
+			this->operator++();
 			return iter;
 		}
 		iterator operator--(int) {
 			iterator iter(*this);
-			--this;
+			this->operator--();
 			return iter;
 		}
 
@@ -123,24 +148,23 @@ private:
 		}
 
 
-
 		friend bool operator== (const iterator& it1, const iterator& it2)
 		{
 			return it1._node == it2._node;
 		}
-
-		friend bool operator!= (const iterator& it1, const iterator& it2)
+		friend bool operator!=(const iterator& it1, const iterator& it2)
 		{
 			return it1._node != it2._node;
 		}
 
-		iterator GetMin() {
+
+		iterator GetMin() const {
 			iterator temp = *this;
 			while (!temp.left().isFake())
 				temp = temp.left();
 			return temp;
 		}
-		iterator GetMax() {
+		iterator GetMax() const {
 			iterator temp = *this;
 			while (!temp.right().isFake())
 				temp = temp.right();
@@ -164,24 +188,25 @@ private:
 		}
 
 	};
-
+//private:
 	Comparator comparator = Comparator();
-	using Alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<Node>;
+	using Alloc = typename std::allocator_traits<allocator_type>::template rebind_alloc<Node>;
 	Alloc alloc;
+
 
 	//Node* root;
 	Node* fake_root;
-	size_t _size = 0;
+	size_type _size = 0;
 
 	void fake_root_initialize() {
 		fake_root = alloc.allocate(1);
 
 		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->parent));
-		fake_root->parent = nullptr;
+		fake_root->parent = fake_root;
 		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->right));
-		fake_root->right = nullptr;
+		fake_root->right = fake_root;
 		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->left));
-		fake_root->left = nullptr;
+		fake_root->left = fake_root;
 
 		fake_root->isFake = true;
 
@@ -195,7 +220,7 @@ private:
 
 	}
 
-	Node* newNode(const T& value, Node* parent, Node* left, Node* right) {
+	Node* newNode(const_reference value, Node* parent, Node* left, Node* right) {
 		Node* newnode = alloc.allocate(1);
 
 		std::allocator_traits<Alloc>::construct(alloc, &(newnode->parent));
@@ -259,7 +284,7 @@ private:
 
 		return (node1->data == node2->data) && checkByRecursion(node1->left, node2->left) && checkByRecursion(node1->right, node2->right);
 	}
-	void swapWithMostLeft(iterator node) {
+	iterator swapWithMostLeft(iterator node) {
 		iterator toSwap = node.left().GetMax();
 
 		//case 1
@@ -295,7 +320,7 @@ private:
 				}
 			}
 			node.setParent(toSwap);
-			return;
+			return node;
 
 		}
 		//case 2
@@ -330,6 +355,7 @@ private:
 
 		node.setParent(toSwap.parent());
 		toSwap.setParent(temp1);
+		return node;
 	}
 
 	void printNode(const Node* current, int width = 0) const {
@@ -344,28 +370,83 @@ private:
 		printNode(current->left, width + 3);
 	}
 public:
+	using const_iterator = iterator;
+	using reverse_iterator = std::reverse_iterator<iterator>;
+	using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 	friend bool operator==(const BinarySearchTree& first, const BinarySearchTree& second) {
 		return (first._size == second._size) && checkByRecursion(first.fake_root->parent, second.fake_root->parent);
 	}
 
-	friend bool operator!=(const BinarySearchTree& first, const BinarySearchTree& second) {
-		return !(first==second);
+	friend bool operator<(const BinarySearchTree& first, const BinarySearchTree& second) {
+		iterator it1 = first.begin();
+		iterator it2 = second.begin();
+		while (it1 != first.end() && it2 != second.end() && *it1 == *it2) {
+			++it1; ++it2;
+		}
+
+		if (it1 == first.end())
+			return it2 != second.end();
+
+		return it2 != second.end() && *it1 < *it2;
 	}
-	
-	iterator begin() const {
+
+	friend bool operator>(const BinarySearchTree& first, const BinarySearchTree& second) {
+		return second < first;
+	}
+
+	friend bool operator>=(const BinarySearchTree& first, const BinarySearchTree& second) {
+		return !(first < second);
+	}
+
+	friend bool operator<=(const BinarySearchTree& first, const BinarySearchTree& second) {
+		return !(first > second);
+	}
+
+	friend bool operator!=(const BinarySearchTree& first, const BinarySearchTree& second) {
+		return !(first == second);
+	}
+
+	iterator begin() const noexcept {
 		return iterator(fake_root->left);
 	}
-	iterator end() const {
+	iterator end() const noexcept {
 		return iterator(fake_root);
 	}
 
-	BinarySearchTree() {
+	reverse_iterator rbegin() const	noexcept {
+		return reverse_iterator(iterator(fake_root->right));
+	}
+	reverse_iterator rend() const noexcept {
+		return reverse_iterator(iterator(fake_root));
+	}
+
+	allocator_type get_allocator() const noexcept {
+		return alloc;
+	}
+
+	key_compare key_comp() const noexcept {
+		return comparator;
+	}
+	value_compare value_comp() const noexcept {
+		return comparator;
+	}
+
+	inline bool empty() const noexcept {
+		return _size == 0;
+	}
+
+	template <class InputIterator>
+	BinarySearchTree(InputIterator first, InputIterator last, Comparator comparator = Comparator(), allocator_type alloc = allocator_type()) : BinarySearchTree(comparator, alloc) {
+
+		std::for_each(first, last, [this](T x) { insert(x); });
+	}
+	BinarySearchTree(Comparator comparator = Comparator(), allocator_type alloc = allocator_type()) {
 		fake_root_initialize();
 	}
 
-	BinarySearchTree(std::initializer_list<T> list) : BinarySearchTree() {
-		for (T x : list) add(x);
+	BinarySearchTree(std::initializer_list<value_type> list) : BinarySearchTree() {
+		for (T x : list) insert(x);
 	}
 
 	BinarySearchTree(const BinarySearchTree& other) : BinarySearchTree() {
@@ -380,23 +461,31 @@ public:
 	}
 
 	const BinarySearchTree& operator=(const BinarySearchTree& other) {
-		if (this == &other) return*this;
-		BinarySearchTree temp(other);
+		if (this == &other) return *this;
+		BinarySearchTree<T> temp(other);
 		std::swap(temp.fake_root, this->fake_root);
 		std::swap(temp._size, this->_size);
+		return *this;
 
+	}
+
+	const BinarySearchTree& operator=(BinarySearchTree&& other) {
+		if (this == &other) return *this;
+		std::swap(other.fake_root, this->fake_root);
+		std::swap(other._size, this->_size);
 		return *this;
 
 	}
 
 	//parent - root; right - most right; left - most left
-	void add(T value) {
-		++_size;
+	std::pair<iterator, bool> insert(const_reference value) {
 		if (iterator(fake_root->parent).isFake()) {
 			Node* addedNode = newNode(value, fake_root, fake_root, fake_root);
 			fake_root->parent = addedNode;
 			fake_root->left = addedNode;
 			fake_root->right = addedNode;
+			++_size;
+			return std::make_pair(iterator(addedNode), true);
 		}
 		else {
 			iterator prev = iterator(fake_root->parent);
@@ -406,12 +495,16 @@ public:
 				prev = current;
 				if (comparator(value, *current)) {
 					current.step_left();
+					continue;
 				}
-				else if (comparator(*current, value)) {
+				if (comparator(*current, value)) {
 					current.step_right();
+					continue;
 				}
+				return std::make_pair(iterator(current), false);
 			}
 			Node* addedNode = newNode(value, prev.node(), fake_root, fake_root);
+			++_size;
 			if (comparator(value, *prev)) {
 				prev.node()->left = addedNode;
 				if (fake_root->left == prev.node()) {
@@ -424,7 +517,56 @@ public:
 					fake_root->right = addedNode;
 				}
 			}
+			return std::make_pair(iterator(addedNode), true);
 		}
+	}
+
+	iterator insert(const_iterator pos, const_reference value) {
+		iterator prev(pos);
+		if (pos.isFake() || comparator(value, *pos)) {
+			--prev;
+			while (!prev.isFake() && comparator(value, *prev)) {
+				pos = prev--;
+			}
+		}
+		else {
+			while (!pos.isFake() && !comparator(value, *pos)) {
+				prev = pos++;
+			}
+		}
+
+		if (pos == prev) {
+			_size++;
+			Node* addedNode = newNode(value, fake_root, fake_root, fake_root);
+			fake_root->parent = fake_root->left = fake_root->right = addedNode;
+			return iterator(addedNode);
+		}
+		if (!prev.isFake() && *prev == value) return prev;
+
+		if (prev.isFake()) {
+			Node* pnode = pos.node();
+			pnode->left = newNode(value, pnode, fake_root, fake_root);
+			++_size;
+			fake_root->left = pnode;
+			return iterator(fake_root->left);
+		}
+
+		if (prev.right().isFake()) {
+			prev.node()->right = newNode(value, prev.node(), fake_root, fake_root);
+			++_size;
+			if (fake_root->right == prev.node()) {
+				fake_root->right = prev.node()->right;
+			}
+			return iterator(prev.node()->right);
+		}
+		pos.node()->left = newNode(value, pos.node(), fake_root, fake_root);
+		++_size;
+		return iterator(pos.node()->left);
+	}
+
+	template <class InputIterator>
+	void insert(InputIterator first, InputIterator last) {
+		while (first != last) insert(*first++);
 	}
 
 	void erase_leaf(iterator leaf) {
@@ -451,78 +593,94 @@ public:
 				}
 			}
 		}
-
+		_size--;
 		clearNode(leaf.node());
 	}
 
-	
+	iterator erase(iterator it) {
+		if (it.isFake()) return iterator(it);
 
-	void erase(iterator it) {
-		if (it.isFake()) return;
-
-		else if (it.right().isFake() && it.left().isFake()) {
+		if (it.right().isFake() && it.left().isFake()) {
+			iterator toReturn(it);
+			++toReturn;
 			erase_leaf(it);
-			return;
+			return toReturn;
 		}
 
-		else if (it.right().isFake()) {
+		if (it.right().isFake()) {
 			if (it.parent().isFake()) {
 				fake_root->parent = it.left().node();
 				it.left().node()->parent = fake_root;
 				fake_root->right = it.left().GetMax().node();
 				clearNode(it.node());
-				return;
+				return iterator(fake_root->right);
 			}
 			else {
-				it.left().setParent(it.parent());
+				iterator toReturn(it);
+				++toReturn;
+				it.left().node()->parent = it.parent().node();
 				if (it.isRight()) {
-					it.parent().setRight(it.left());
+					it.parent().node()->right = it.left().node();
 					if (it.node() == fake_root->right) {
 						fake_root->right = it.left().GetMax().node();
 					}
 				}
 				else {
-					it.parent().setLeft(it.left());
+					it.parent().node()->left = it.left().node();
 				}
 				--_size;
 				clearNode(it.node());
-				return;
+				return toReturn;
 
 			}
 
-			if (it.left().isFake()) {
-				if (it.parent().isFake()) {
-					fake_root->parent = it.right().node();
-					it.right().node()->parent = fake_root;
-					fake_root->left = it.right().GetMin().node();
-					clearNode(it.node());
-					--_size;
-					return;
+		}
+		if (it.left().isFake()) {
+			if (it.parent().isFake()) {
+				fake_root->parent = it.right().node();
+				it.right().node()->parent = fake_root;
+				fake_root->left = it.right().GetMin().node();
+				clearNode(it.node());
+				--_size;
+				return iterator(fake_root->left);
+			}
+			else {
+				iterator toReturn(it.right());
+				it.right().node()->parent = it.parent().node();
+				if (it.isRight()) {
+					it.parent().node()->right = it.right().node();
 				}
 				else {
-					it.right().setParent(it.parent());
-					if (it.isRight()) {
-						it.parent().setRight(it.right());
+					it.parent().node()->left = it.right().node();
+					if (it.node() == fake_root->left) {
+						fake_root->left = it.right().GetMin().node();
 					}
-					else {
-						it.parent().setLeft(it.right());
-						if (it.node() == fake_root->left) {
-							fake_root->left = it.right().GetMin().node();
-						}
-					}
-					--_size;
-					clearNode(it.node());
-					return;
 				}
+				--_size;
+				clearNode(it.node());
+				return toReturn;
 			}
 		}
 
 		swapWithMostLeft(it);
-		erase(it);
+		return erase(it);
 
 	}
 
-	iterator find(const T& value) const {
+	size_type erase(const_reference value) {
+		iterator it = find(value);
+		if (it.isFake()) return 0;
+		erase(it);
+		return 1;
+	}
+
+	iterator erase(const_iterator first, const_iterator last) {
+		while (first != last)
+			first = erase(first);
+		return last;
+	}
+
+	iterator find(const_reference value) const {
 		iterator cur = iterator(fake_root->parent);
 
 		while (!cur.isFake()) {
@@ -539,15 +697,15 @@ public:
 		return cur;
 	}
 
-	T min() const {
+	value_type min() const {
 		return fake_root->left->data;
 	}
 
-	T max() const {
+	value_type max() const {
 		return fake_root->right->data;
 	}
 
-	T lowerBound(const T& value) const {
+	iterator lower_bound(const_reference value) const {
 		iterator current(fake_root->parent);
 		iterator result(fake_root->parent);;
 
@@ -560,10 +718,10 @@ public:
 				current = current.left();
 		}
 
-		return *result;
+		return result;
 	}
 
-	T upper_bound(const T& value) const {
+	iterator upper_bound(const_reference value) const {
 
 		iterator current(fake_root->parent);
 		iterator result(fake_root->parent);;
@@ -577,12 +735,31 @@ public:
 				current = current.right();
 		}
 
-		return *result;
+		return result;
+	}
+	size_type count(const value_type& key) const {
+		if (find(key) == end()) {
+			return 0;
+		}
+		return 1;
 	}
 
-	void erase(const T& value) {
-		iterator iter = find(value);
-		if (!iter.isFake()) erase(iter);
+	std::pair<const_iterator, const_iterator> equal_range(const_reference value) const {
+		const_iterator temp(fake_root->parent);
+		const_iterator left(fake_root->parent);
+		const_iterator right(fake_root->parent);
+		while (!temp.isFake()) {
+			if (!comparator(value, *temp)) {
+				left = temp;
+				temp.step_right();
+			}
+			else {
+				right = temp;
+				temp.step_left();
+			}
+		}
+		return std::make_pair(left, right);
+
 	}
 
 
@@ -591,7 +768,29 @@ public:
 		std::cout << "********************************************************\n";
 	}
 
-	size_t size() const { return _size; }
+	size_type size() const { return _size; }
 
+	void clear() {
+		clearByRecur(fake_root->parent);
+		_size = 0;
+		fake_root->parent = fake_root;
+		fake_root->left = fake_root;
+		fake_root->right = fake_root;
+	}
 
+	void swap(BinarySearchTree& other) noexcept {
+		std::swap(fake_root, other.fake_root);
+
+		//  Обмен размера множеств
+		std::swap(_size, other._size);
+	}
+
+//private:
+	void clearByRecur(Node* node) {
+		if (node != fake_root) {
+			clearByRecur(node->left);
+			clearByRecur(node->right);
+			clearNode(node);
+		}
+	}
 };
