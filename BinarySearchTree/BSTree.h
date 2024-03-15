@@ -20,7 +20,7 @@ public:
 	using reference = value_type&;
 	using const_reference = const value_type&;
 
-//private:
+private:
 
 	class Node {
 	public:
@@ -31,7 +31,8 @@ public:
 
 		bool isFake = false;
 
-		Node(value_type value = value_type(), Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(value) {}
+		Node(const T& value, Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(value) {}
+		Node(T&& value, Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(std::move(value)) {}
 
 		bool operator==(const Node* other) const {
 			return (data == other->data);
@@ -47,7 +48,7 @@ public:
 		using difference_type = BinarySearchTree::difference_type;
 		using pointer = BinarySearchTree::const_pointer;
 		using reference = BinarySearchTree::const_reference;
-	//protected:
+	protected:
 		Node* _node;
 		explicit iterator(Node* nd) : _node(nd) {};
 		Node* &node() {
@@ -64,7 +65,13 @@ public:
 		}
 
 		bool isFake() const {
-			return _node == nullptr || _node->isFake;
+			if (!_node) {
+				return true;
+			}
+			else if (_node->isFake) {
+				return true;
+			}
+			return false;
 		}
 	public:
 		const_reference operator*() {
@@ -188,7 +195,7 @@ public:
 		}
 
 	};
-//private:
+private:
 	Comparator comparator = Comparator();
 	using Alloc = typename std::allocator_traits<allocator_type>::template rebind_alloc<Node>;
 	Alloc alloc;
@@ -198,7 +205,7 @@ public:
 	Node* fake_root;
 	size_type _size = 0;
 
-	void fake_root_initialize() {
+	inline void fake_root_initialize() {
 		fake_root = alloc.allocate(1);
 
 		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->parent));
@@ -207,20 +214,20 @@ public:
 		fake_root->right = fake_root;
 		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->left));
 		fake_root->left = fake_root;
-
+		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->isFake));
 		fake_root->isFake = true;
 
 	}
 
-	void fake_root_delete() {
-		std::allocator_traits<Alloc>::destroy(alloc, fake_root->parent);
-		std::allocator_traits<Alloc>::destroy(alloc, fake_root->right);
-		std::allocator_traits<Alloc>::destroy(alloc, fake_root->left);
+	inline void fake_root_delete() {
+		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->parent));
+		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->right));
+		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->left));
+		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->isFake));
 		std::allocator_traits<Alloc>::deallocate(alloc, fake_root, 1);
 
 	}
-
-	Node* newNode(const_reference value, Node* parent, Node* left, Node* right) {
+	inline Node* newNode(value_type&& value, Node* parent, Node* left, Node* right) {
 		Node* newnode = alloc.allocate(1);
 
 		std::allocator_traits<Alloc>::construct(alloc, &(newnode->parent));
@@ -229,11 +236,15 @@ public:
 		newnode->left = left;
 		std::allocator_traits<Alloc>::construct(alloc, &(newnode->right));
 		newnode->right = right;
-		std::allocator_traits<Alloc>::construct(alloc, &(newnode->data));
-		newnode->data = value;
+		std::allocator_traits<Alloc>::construct(alloc, &(newnode->data), std::move(value));
+
+		std::allocator_traits<Alloc>::construct(alloc, &(newnode->isFake));
 		newnode->isFake = false;
 
 		return newnode;
+	}
+	inline Node* newNode(const value_type& value, Node* parent, Node* left, Node* right) {
+		return newNode(std::move(value_type(value)), parent, left, right);
 	}
 	void clearNode(Node* node) {
 
@@ -241,6 +252,7 @@ public:
 		std::allocator_traits<Alloc>::destroy(alloc, &(node->parent));
 		std::allocator_traits<Alloc>::destroy(alloc, &(node->right));
 		std::allocator_traits<Alloc>::destroy(alloc, &(node->left));
+		std::allocator_traits<Alloc>::destroy(alloc, &(node->isFake));
 		std::allocator_traits<Alloc>::deallocate(alloc, node, 1);
 
 	}
@@ -436,17 +448,19 @@ public:
 		return _size == 0;
 	}
 
+
 	template <class InputIterator>
 	BinarySearchTree(InputIterator first, InputIterator last, Comparator comparator = Comparator(), allocator_type alloc = allocator_type()) : BinarySearchTree(comparator, alloc) {
 
 		std::for_each(first, last, [this](T x) { insert(x); });
 	}
-	BinarySearchTree(Comparator comparator = Comparator(), allocator_type alloc = allocator_type()) {
+	BinarySearchTree(Comparator _comparator = Comparator(), allocator_type _alloc = allocator_type()) : comparator(_comparator), alloc(_alloc), _size(0) {
 		fake_root_initialize();
+
 	}
 
 	BinarySearchTree(std::initializer_list<value_type> list) : BinarySearchTree() {
-		for (T x : list) insert(x);
+		for (const T& x : list) insert(x);
 	}
 
 	BinarySearchTree(const BinarySearchTree& other) : BinarySearchTree() {
@@ -458,6 +472,11 @@ public:
 
 		fake_root->left = iterator(fake_root->parent).GetMin().node();
 		fake_root->right = iterator(fake_root->parent).GetMax().node();
+	}
+
+	~BinarySearchTree() {
+		clear();
+		fake_root_delete();
 	}
 
 	const BinarySearchTree& operator=(const BinarySearchTree& other) {
@@ -477,10 +496,14 @@ public:
 
 	}
 
-	//parent - root; right - most right; left - most left
 	std::pair<iterator, bool> insert(const_reference value) {
+		return insert(std::move(T(value)));
+	}
+
+	//parent - root; right - most right; left - most left
+	std::pair<iterator, bool> insert(value_type&& value) {
 		if (iterator(fake_root->parent).isFake()) {
-			Node* addedNode = newNode(value, fake_root, fake_root, fake_root);
+			Node* addedNode = newNode(std::move(value), fake_root, fake_root, fake_root);
 			fake_root->parent = addedNode;
 			fake_root->left = addedNode;
 			fake_root->right = addedNode;
@@ -503,7 +526,7 @@ public:
 				}
 				return std::make_pair(iterator(current), false);
 			}
-			Node* addedNode = newNode(value, prev.node(), fake_root, fake_root);
+			Node* addedNode = newNode(std::move(value), prev.node(), fake_root, fake_root);
 			++_size;
 			if (comparator(value, *prev)) {
 				prev.node()->left = addedNode;
@@ -570,6 +593,8 @@ public:
 	}
 
 	void erase_leaf(iterator leaf) {
+		if (leaf.isFake()) return;
+
 		if (!leaf.parent().isFake()) {
 			if (leaf.parent().right() == leaf) {
 				leaf.parent().node()->right = fake_root;
@@ -578,7 +603,7 @@ public:
 				leaf.parent().node()->left = fake_root;
 			}
 		}
-		if (fake_root == leaf.node()) {
+		if (fake_root->parent == leaf.node()) {
 			fake_root->parent = fake_root;
 			fake_root->left = fake_root;
 			fake_root->right = fake_root;
@@ -612,6 +637,7 @@ public:
 				fake_root->parent = it.left().node();
 				it.left().node()->parent = fake_root;
 				fake_root->right = it.left().GetMax().node();
+				_size--;
 				clearNode(it.node());
 				return iterator(fake_root->right);
 			}
@@ -640,8 +666,9 @@ public:
 				fake_root->parent = it.right().node();
 				it.right().node()->parent = fake_root;
 				fake_root->left = it.right().GetMin().node();
-				clearNode(it.node());
 				--_size;
+				clearNode(it.node());
+
 				return iterator(fake_root->left);
 			}
 			else {
@@ -764,6 +791,7 @@ public:
 
 
 	void PrintTree() const {
+		//if (_size == 0) return;
 		printNode(fake_root->parent);
 		std::cout << "********************************************************\n";
 	}
@@ -780,12 +808,10 @@ public:
 
 	void swap(BinarySearchTree& other) noexcept {
 		std::swap(fake_root, other.fake_root);
-
-		//  Обмен размера множеств
 		std::swap(_size, other._size);
 	}
 
-//private:
+private:
 	void clearByRecur(Node* node) {
 		if (node != fake_root) {
 			clearByRecur(node->left);

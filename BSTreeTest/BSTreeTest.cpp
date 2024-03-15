@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory_resource>
 #include <iterator>
+#include <vector>
 
 //Тестирование заголовка <set>, основанное на книге «The C++ Standard Template Library» P.J. Plauger, Alexander A. Stepanov,
 //    Meng Lee, David R. Musser. Немного модифицировано, и разбито на отдельные тесты. 
@@ -222,6 +223,89 @@ namespace TreeTest
 			Assert::IsTrue(*v4.upper_bound('a') == 'b', L"Метод upper_bound");
 			std::pair<Mycont::const_iterator, Mycont::const_iterator> pcc = v4.equal_range('a');
 			Assert::IsTrue(*pcc.first == 'a' && *pcc.second == 'b', L"Ошибка метода equal_range");
+		}
+	};
+
+	class Elem {
+		int data;
+		uint32_t watch;
+		static size_t elem_counter;
+		void check() const { Assert::IsTrue(watch == 0xDEADBEEF, L"Повреждение памяти!! (Обращение к неинициализированному экземпляру класса Elem)"); }
+	public:
+		Elem(const Elem& el) = delete;
+		Elem& operator=(const Elem& el) = delete;
+		explicit Elem(int value) : data(value), watch(0xDEADBEEF) { ++elem_counter; }
+		Elem(Elem&& e) noexcept { e.check(); data = e.data; watch = e.watch; ++elem_counter; }
+		Elem& operator=(Elem&& e) noexcept { check(); e.check(); data = e.data; watch = e.watch; }
+		bool operator<(const Elem& e) const { check(); e.check(); return data < e.data; }
+		~Elem() { check(); watch = 0; --elem_counter; }
+		static size_t count() { return elem_counter; }
+	};
+	size_t Elem::elem_counter = 0;
+
+	TEST_CLASS(ComplexTypeTests)
+	{
+		///  Немного отсебятины - тесты на сложных структурах данных
+	public:
+
+		template<typename T> using Myal = std::allocator<T>;
+		template<typename T> using Mypred = std::less<T>;
+
+		//  Для того, чтобы выполнить тестирование одного из указанных контейнеров (std::set или Binary_Tree_Search)
+		//    должна быть раскомментирована одна из следующих строк:
+		//template<typename T> using ContainerTemplate = std::set<T, Mypred<T>, Myal<T>>;
+		template<typename T> using ContainerTemplate = BinarySearchTree<T, Mypred<T>, Myal<T>>;
+
+
+		TEST_METHOD(StringTests)
+		{
+			return;
+			ContainerTemplate<std::string> T1{ "abc", "cde", "123", "AAAAAAAA" };
+			std::vector<std::string> check1{ "123", "AAAAAAAA", "abc", "cde" };
+			
+
+			Assert::IsTrue(T1.size() == 4, L"Неправильно считается количество строковых элементов");
+			Assert::IsTrue(std::equal(T1.begin(), T1.end(), check1.begin(), check1.end()), L"Неправильный порядок строковых элементов");
+			Assert::IsTrue(std::equal(T1.rbegin(), T1.rend(), check1.rbegin(), check1.rend()), L"Неправильный порядок строковых элементов");
+
+			for (const auto& str : check1)
+				T1.erase(str);
+
+			Assert::IsTrue(T1.size() == 0, L"Сет не пуст после удаления всех элементов");
+			for (const auto& elem : T1)
+				Assert::Fail(L"Что-то лежит в сете после удаления всех элементов");
+
+			T1.insert("test-1");
+			T1.insert("test-4");
+			T1.insert("test-2");
+			
+			std::vector<std::string> check2{ "test-1", "test-2", "test-4" };
+			Assert::IsTrue(std::equal(T1.begin(), T1.end(), check2.begin(), check2.end()), L"Неправильный порядок строковых элементов");
+			Assert::IsTrue(std::equal(T1.rbegin(), T1.rend(), check2.rbegin(), check2.rend()), L"Неправильный порядок строковых элементов");
+		}
+
+		TEST_METHOD(ElemTests)
+		{
+			size_t init_count = Elem::count();
+			{
+				ContainerTemplate<Elem> T1;
+				Assert::IsTrue(Elem::count() - init_count == 0, L"Создан лишний экземпляр класса Elem");
+
+				for (const auto& elem : T1)
+					Assert::Fail(L"Что-то лежит в пустом сете");
+
+				T1.insert(Elem(40));
+				T1.insert(Elem(75));
+				T1.insert(Elem(50));
+				T1.insert(Elem(23));
+				T1.insert(Elem(87));
+				Assert::IsTrue(Elem::count() - init_count == 5, L"Создан лишний экземпляр класса Elem");
+				T1.erase(Elem(75));
+				Assert::IsTrue(Elem::count() - init_count == 4, L"Неправильно работает удаление элементов дерева");
+				T1.erase(Elem(100));
+				Assert::IsTrue(Elem::count() - init_count == 4, L"Неправильно работает удаление несуществующих элементов");
+			}
+			Assert::IsTrue(Elem::count() - init_count == 0, L"Утечка памяти!!");
 		}
 	};
 

@@ -1,44 +1,37 @@
-#include <iostream>
-#include "BSTree.h"	
+#include "..\BinarySearchTree\BSTree.h"
+#include <set>
+#include <functional>
+#include <memory_resource>
+#include <iterator>
+#include <vector>
 
+class Elem {
+	int data;
+	uint32_t watch;
+	static size_t elem_counter;
+	void check() const { if (watch != 0xDEADBEEF) throw new std::exception("Повреждение памяти!! (Обращение к неинициализированному экземпляру класса Elem)"); }
+public:
+	Elem(const Elem& el) = delete;
+	Elem& operator=(const Elem& el) = delete;
+	explicit Elem(int value) : data(value), watch(0xDEADBEEF) { ++elem_counter; }
+	Elem(Elem&& e) noexcept { e.check(); data = e.data; watch = e.watch; ++elem_counter; }
+	Elem& operator=(Elem&& e) noexcept { check(); e.check(); data = e.data; watch = e.watch; }
+	bool operator<(const Elem& e) const { check(); e.check(); return data < e.data; }
+	~Elem() { check(); watch = 0; --elem_counter; }
+	static size_t count() { return elem_counter; }
+};
+size_t Elem::elem_counter = 0;
 
 int main() {
-	char carr[] = "abc", carr2[] = "def";
-	BinarySearchTree<char> v0;
-	BinarySearchTree<char> v1(carr, carr + 3);
 
-	v0.clear();
-	std::pair<BinarySearchTree<char>::iterator, bool> pib = v0.insert('d');
-	pib = v0.insert('d');
-	v0.insert(v0.begin(), 'e');
-	v0.insert(carr, carr + 3);
-	v0.insert(carr2, carr2 + 3);
-	v0.clear();
-	v0 = { 'd','a','e','b','f','c'};
+	BinarySearchTree<std::string> T1{ "abc", "cde", "123", "AAAAAAAA" };
+	std::vector<std::string> check1{ "123", "AAAAAAAA", "abc", "cde" };
+	for (std::string s : T1) {
+		std::cout << s << std::endl;
+	}
+	T1.PrintTree();
 
-	v0.PrintTree();
-	//v0.swapWithMostLeft(v0.find('a'));
-	v0.erase(v0.find('a'));
-	std::cout << "\n\n\n\n";
-	v0.PrintTree();
-
-	//v0.erase(v0.find('a'));
-	//v0.PrintTree();
-	//daebfc
-	//std::cout << *(v0.find('a'));
-	//for (char c : v0) std::cout << c << std::endl;
-	//std::cout << v0.find('d').parent().isFake() << std::endl;
-	//std::cout << v0.find('d').left().isFake() << std::endl;
-	//std::cout << v0.find('d').right().isFake() << std::endl;
-	//v0.erase(v0.begin()+1);
-	//std::cout << v0.size() << std::endl;
-
-	//v0.erase(v0.begin(), ++v0.begin());
-	//v0.erase('x');
-	//v0.erase_leaf(v0.find('c'));
-	//v0.erase('d');
-	//v0.erase(v0.find('f'));
-	//v0.erase(v0.find('e'));
-	//v0.PrintTree();
+	//BinarySearchTree<Elem> tree;
+	
 	return 1;
 }
