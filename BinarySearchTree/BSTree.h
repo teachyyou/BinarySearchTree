@@ -6,7 +6,6 @@
 
 template<typename T, class Comparator = std::less<T>, class Allocator = std::allocator<T>>
 class BinarySearchTree {
-
 public:
 	using key_type = T;
 	using key_compare = Comparator;
@@ -21,7 +20,6 @@ public:
 	using const_reference = const value_type&;
 
 private:
-
 	class Node {
 	public:
 		Node* parent;
@@ -40,6 +38,7 @@ private:
 
 	};
 public:
+
 	class iterator {
 	public:
 		friend class BinarySearchTree<value_type>;
@@ -63,6 +62,34 @@ public:
 		iterator right() const {
 			return iterator(_node->right);
 		}
+		iterator& step_up() {
+			_node = _node->parent;
+			return *this;
+		}
+		iterator& step_left() {
+			_node = _node->left;
+			return *this;
+		}
+		iterator& step_right() {
+			_node = _node->right;
+			return *this;
+		}
+
+		void setParent(const iterator& other) {
+			_node->parent = other._node;
+		}
+		void setRight(const iterator& other) {
+			_node->right = other._node;
+		}
+		void setLeft(const iterator& other) {
+			_node->left = other._node;
+		}
+		bool isRight() const {
+			return parent().right() == *this;
+		}
+		bool isLeft() const {
+			return parent().left() == *this;
+		}
 
 		bool isFake() const {
 			if (!_node) {
@@ -79,18 +106,6 @@ public:
 		}
 		pointer operator->() {
 			return *_node;
-		}
-		iterator& step_up() {
-			_node = _node->parent;
-			return *this;
-		}
-		iterator& step_left() {
-			_node = _node->left;
-			return *this;
-		}
-		iterator& step_right() {
-			_node = _node->right;
-			return *this;
 		}
 
 		iterator& operator++() {
@@ -142,18 +157,6 @@ public:
 			return iter;
 		}
 
-		iterator operator+(int a) const {
-			iterator tmp = iterator(_node);
-			for (int i = 0; i < a; i++) ++tmp;
-			return tmp;
-		}
-
-		iterator operator-(int a) const {
-			iterator tmp = iterator(_node);
-			for (int i = 0; i < a; i++) --tmp;
-			return tmp;
-		}
-
 
 		friend bool operator== (const iterator& it1, const iterator& it2)
 		{
@@ -178,30 +181,13 @@ public:
 			return temp;
 		}
 
-		void setParent(const iterator& other) {
-			_node->parent = other._node;
-		}
-		void setRight(const iterator& other) {
-			_node->right = other._node;
-		}
-		void setLeft(const iterator& other) {
-			_node->left = other._node;
-		}
-		bool isRight() const {
-			return parent().right() == *this;
-		}
-		bool isLeft() const {
-			return parent().left() == *this;
-		}
-
 	};
 private:
-	Comparator comparator = Comparator();
+	Comparator comparator;
 	using Alloc = typename std::allocator_traits<allocator_type>::template rebind_alloc<Node>;
 	Alloc alloc;
 
 
-	//Node* root;
 	Node* fake_root;
 	size_type _size = 0;
 
@@ -369,6 +355,36 @@ private:
 		toSwap.setParent(temp1);
 		return node;
 	}
+	void erase_leaf(iterator leaf) {
+		if (leaf.isFake()) return;
+
+		if (!leaf.parent().isFake()) {
+			if (leaf.parent().right() == leaf) {
+				leaf.parent().node()->right = fake_root;
+			}
+			else {
+				leaf.parent().node()->left = fake_root;
+			}
+		}
+		if (fake_root->parent == leaf.node()) {
+			fake_root->parent = fake_root;
+			fake_root->left = fake_root;
+			fake_root->right = fake_root;
+		}
+		else {
+			if (fake_root->right == leaf.node()) {
+				fake_root->right = leaf.parent().node();
+			}
+			else {
+				if (fake_root->left == leaf.node()) {
+					fake_root->left = leaf.parent().node();
+				}
+			}
+		}
+		_size--;
+		clearNode(leaf.node());
+	}
+
 
 	void printNode(const Node* current, int width = 0) const {
 		std::string spaces = "";
@@ -591,37 +607,6 @@ public:
 	void insert(InputIterator first, InputIterator last) {
 		while (first != last) insert(*first++);
 	}
-
-	void erase_leaf(iterator leaf) {
-		if (leaf.isFake()) return;
-
-		if (!leaf.parent().isFake()) {
-			if (leaf.parent().right() == leaf) {
-				leaf.parent().node()->right = fake_root;
-			}
-			else {
-				leaf.parent().node()->left = fake_root;
-			}
-		}
-		if (fake_root->parent == leaf.node()) {
-			fake_root->parent = fake_root;
-			fake_root->left = fake_root;
-			fake_root->right = fake_root;
-		}
-		else {
-			if (fake_root->right == leaf.node()) {
-				fake_root->right = leaf.parent().node();
-			}
-			else {
-				if (fake_root->left == leaf.node()) {
-					fake_root->left = leaf.parent().node();
-				}
-			}
-		}
-		_size--;
-		clearNode(leaf.node());
-	}
-
 	iterator erase(iterator it) {
 		if (it.isFake()) return iterator(it);
 
@@ -791,9 +776,8 @@ public:
 
 
 	void PrintTree() const {
-		//if (_size == 0) return;
 		printNode(fake_root->parent);
-		std::cout << "********************************************************\n";
+		std::cout << "\n\n\n\n";
 	}
 
 	size_type size() const { return _size; }
