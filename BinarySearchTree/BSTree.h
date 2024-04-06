@@ -26,11 +26,12 @@ private:
 		Node* left;
 		Node* right;
 		value_type data;
+		int height;
 
 		bool isFake = false;
 
-		Node(const T& value, Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(value) {}
-		Node(T&& value, Node* p = nullptr, Node* l = nullptr, Node* r = nullptr) : parent(p), left(l), right(r), data(std::move(value)) {}
+		Node(const T& value, Node* p = nullptr, Node* l = nullptr, Node* r = nullptr, int h = 0) : parent(p), left(l), right(r), data(value), height(h) {}
+		Node(T&& value, Node* p = nullptr, Node* l = nullptr, Node* r = nullptr, int h = 0) : parent(p), left(l), right(r), data(std::move(value)), height(h) {}
 
 		bool operator==(const Node* other) const {
 			return (data == other->data);
@@ -202,6 +203,9 @@ private:
 		fake_root->left = fake_root;
 		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->isFake));
 		fake_root->isFake = true;
+		std::allocator_traits<Alloc>::construct(alloc, &(fake_root->height));
+		fake_root->height = 0;
+
 
 	}
 
@@ -210,6 +214,7 @@ private:
 		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->right));
 		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->left));
 		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->isFake));
+		std::allocator_traits<Alloc>::destroy(alloc, &(fake_root->height));
 		std::allocator_traits<Alloc>::deallocate(alloc, fake_root, 1);
 
 	}
@@ -226,6 +231,8 @@ private:
 
 		std::allocator_traits<Alloc>::construct(alloc, &(newnode->isFake));
 		newnode->isFake = false;
+		std::allocator_traits<Alloc>::construct(alloc, &(newnode->height));
+		newnode->height = std::max(left->height, right->height)+1;
 
 		return newnode;
 	}
@@ -239,6 +246,7 @@ private:
 		std::allocator_traits<Alloc>::destroy(alloc, &(node->right));
 		std::allocator_traits<Alloc>::destroy(alloc, &(node->left));
 		std::allocator_traits<Alloc>::destroy(alloc, &(node->isFake));
+		std::allocator_traits<Alloc>::destroy(alloc, &(node->height));
 		std::allocator_traits<Alloc>::deallocate(alloc, node, 1);
 
 	}
@@ -443,10 +451,10 @@ public:
 	}
 
 	reverse_iterator rbegin() const	noexcept {
-		return reverse_iterator(iterator(fake_root->right));
+		return reverse_iterator(end());
 	}
 	reverse_iterator rend() const noexcept {
-		return reverse_iterator(iterator(fake_root));
+		return reverse_iterator(begin());
 	}
 
 	allocator_type get_allocator() const noexcept {
@@ -512,19 +520,21 @@ public:
 
 	}
 
-	std::pair<iterator, bool> insert(const_reference value) {
+	iterator insert(const_reference value) {
 		return insert(std::move(T(value)));
 	}
 
 	//parent - root; right - most right; left - most left
-	std::pair<iterator, bool> insert(value_type&& value) {
+	iterator insert(value_type&& value) {
 		if (iterator(fake_root->parent).isFake()) {
 			Node* addedNode = newNode(std::move(value), fake_root, fake_root, fake_root);
 			fake_root->parent = addedNode;
 			fake_root->left = addedNode;
 			fake_root->right = addedNode;
 			++_size;
-			return std::make_pair(iterator(addedNode), true);
+
+
+			return iterator(addedNode);
 		}
 		else {
 			iterator prev = iterator(fake_root->parent);
@@ -536,11 +546,17 @@ public:
 					current.step_left();
 					continue;
 				}
-				if (comparator(*current, value)) {
+				else {
 					current.step_right();
 					continue;
 				}
-				return std::make_pair(iterator(current), false);
+				iterator temp = iterator(current);
+				while (temp.node() != fake_root->parent) {
+					restoreBalance(temp);
+					temp.step_up();
+				}
+				restoreBalance(temp);
+				return iterator(current);
 			}
 			Node* addedNode = newNode(std::move(value), prev.node(), fake_root, fake_root);
 			++_size;
@@ -556,7 +572,13 @@ public:
 					fake_root->right = addedNode;
 				}
 			}
-			return std::make_pair(iterator(addedNode), true);
+			iterator temp = iterator(addedNode);
+			while (temp.node() != fake_root->parent) {
+				restoreBalance(temp);
+				temp.step_up();
+			}
+			restoreBalance(temp);
+			return iterator(addedNode);
 		}
 	}
 
@@ -574,19 +596,20 @@ public:
 			}
 		}
 
-		if (pos == prev) {
-			_size++;
-			Node* addedNode = newNode(value, fake_root, fake_root, fake_root);
-			fake_root->parent = fake_root->left = fake_root->right = addedNode;
-			return iterator(addedNode);
-		}
-		if (!prev.isFake() && *prev == value) return prev;
-
 		if (prev.isFake()) {
 			Node* pnode = pos.node();
 			pnode->left = newNode(value, pnode, fake_root, fake_root);
 			++_size;
 			fake_root->left = pnode;
+
+
+			iterator temp = iterator(fake_root->left);
+			while (temp.node() != fake_root->parent) {
+				restoreBalance(temp);
+				temp.step_up();
+			}
+			restoreBalance(temp);
+
 			return iterator(fake_root->left);
 		}
 
@@ -596,10 +619,26 @@ public:
 			if (fake_root->right == prev.node()) {
 				fake_root->right = prev.node()->right;
 			}
+
+			iterator temp = iterator(fake_root->right);
+			while (temp.node() != fake_root->parent) {
+				restoreBalance(temp);
+				temp.step_up();
+			}
+			restoreBalance(temp);
+
 			return iterator(prev.node()->right);
 		}
 		pos.node()->left = newNode(value, pos.node(), fake_root, fake_root);
 		++_size;
+
+		iterator temp = iterator(pos.node()->left);
+		while (temp.node() != fake_root->parent) {
+			restoreBalance(temp);
+			temp.step_up();
+		}
+		restoreBalance(temp);
+
 		return iterator(pos.node()->left);
 	}
 
@@ -614,6 +653,14 @@ public:
 			iterator toReturn(it);
 			++toReturn;
 			erase_leaf(it);
+
+			iterator temp = toReturn;
+			while (temp.node() != fake_root->parent) {
+				restoreBalance(temp);
+				temp.step_up();
+			}
+			restoreBalance(temp);
+
 			return toReturn;
 		}
 
@@ -624,6 +671,14 @@ public:
 				fake_root->right = it.left().GetMax().node();
 				_size--;
 				clearNode(it.node());
+
+				iterator temp = iterator(fake_root->right);
+				while (temp.node() != fake_root->parent) {
+					restoreBalance(temp);
+					temp.step_up();
+				}
+				restoreBalance(temp);
+
 				return iterator(fake_root->right);
 			}
 			else {
@@ -641,6 +696,14 @@ public:
 				}
 				--_size;
 				clearNode(it.node());
+
+				iterator temp = toReturn;
+				while (temp.node() != fake_root->parent) {
+					restoreBalance(temp);
+					temp.step_up();
+				}
+				restoreBalance(temp);
+
 				return toReturn;
 
 			}
@@ -653,6 +716,13 @@ public:
 				fake_root->left = it.right().GetMin().node();
 				--_size;
 				clearNode(it.node());
+
+				iterator temp = iterator(fake_root->left);
+				while (temp.node() != fake_root->parent) {
+					restoreBalance(temp);
+					temp.step_up();
+				}
+				restoreBalance(temp);
 
 				return iterator(fake_root->left);
 			}
@@ -670,6 +740,14 @@ public:
 				}
 				--_size;
 				clearNode(it.node());
+
+				iterator temp = toReturn;
+				while (temp.node() != fake_root->parent) {
+					restoreBalance(temp);
+					temp.step_up();
+				}
+				restoreBalance(temp);
+
 				return toReturn;
 			}
 		}
@@ -681,9 +759,13 @@ public:
 
 	size_type erase(const_reference value) {
 		iterator it = find(value);
-		if (it.isFake()) return 0;
-		erase(it);
-		return 1;
+		size_type count = 0;
+		while (!it.isFake()) {
+			erase(it);
+			it = find(value);
+			count++;
+		}
+		return count;
 	}
 
 	iterator erase(const_iterator first, const_iterator last) {
@@ -801,6 +883,90 @@ private:
 			clearByRecur(node->left);
 			clearByRecur(node->right);
 			clearNode(node);
+		}
+	}
+
+	void rotate_left(iterator it) {
+		Node* node = it.node();
+		Node* newRoot = node->right;
+		node->right = newRoot->left;
+
+		if (newRoot->left != fake_root) {
+			newRoot->left->parent = node;
+		}
+		newRoot->parent = node->parent;
+		if (node->parent == fake_root) {
+			fake_root->parent = newRoot;
+		}
+		else if (node == node->parent->left) {
+			node->parent->left = newRoot;
+		}
+		else {
+			node->parent->right = newRoot;
+		}
+		newRoot->left = node;
+		node->parent = newRoot;
+
+		node->height = std::max(node->left->height, node->right->height) + 1;
+		newRoot->height = std::max(newRoot->left->height, newRoot->right->height) + 1;
+
+	}
+
+	void rotate_right(iterator it) {
+		Node* node = it.node();
+		Node* newRoot = node->left;
+		node->left = newRoot->right;
+
+		if (newRoot->right != fake_root) {
+			newRoot->right->parent = node;
+		}
+		newRoot->parent = node->parent;
+		if (node->parent == fake_root) {
+			fake_root->parent = newRoot;
+		}
+		else if (node == node->parent->right) {
+			node->parent->right = newRoot;
+		}
+		else {
+			node->parent->left = newRoot;
+		}
+		newRoot->right = node;
+		node->parent = newRoot;
+
+		node->height = std::max(node->left->height, node->right->height) + 1;
+		newRoot->height = std::max(newRoot->left->height, newRoot->right->height) + 1;
+	}
+
+	void big_rotate_right(iterator it) {
+		rotate_left(it.left());
+		rotate_right(it);
+	}
+
+	void big_rotate_left(iterator it) {
+		rotate_right(it.right());
+		rotate_left(it);
+	}
+
+	void restoreBalance(iterator it) {
+		Node* root = it.node();
+		root->height = std::max(root->left->height, root->right->height) + 1;
+		int x = root->right->height - root->left->height;
+		if (std::abs(x) > 1)
+		{
+			if (x > 0)
+			{
+				if (root->right->left->height <= root->right->right->height)
+					rotate_left(iterator(root));
+				else
+					big_rotate_left(iterator(root));
+			}
+			else
+			{
+				if (root->left->right->height <= root->left->left->height)
+					rotate_right(iterator(root));
+				else
+					big_rotate_right(iterator(root));
+			}
 		}
 	}
 };

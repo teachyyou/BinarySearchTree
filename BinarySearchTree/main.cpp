@@ -4,9 +4,10 @@
 #include <memory_resource>
 #include <iterator>
 #include <vector>
+#include <chrono>
 
 class Elem {
-	int data;
+	long data;
 	uint32_t watch;
 	static size_t elem_counter;
 	void check() const { if (watch != 0xDEADBEEF) throw new std::exception("Повреждение памяти!! (Обращение к неинициализированному экземпляру класса Elem)"); }
@@ -23,15 +24,32 @@ public:
 size_t Elem::elem_counter = 0;
 
 int main() {
+    setlocale(LC_ALL, "RUS");
+    {
+        std::multiset<Elem> multiSet;
+        auto start = std::chrono::steady_clock::now();
+        const long n = 10000000; // Количество элементов
+        for (long i = 0; i < n; ++i) {
+            multiSet.insert(Elem(i));
+        }
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        std::cout << "Вставка " << n << " элементов в std::multiset: " << elapsed_seconds.count() << "s\n";
+    }
+    
+    {
+        BinarySearchTree<Elem> bst;
+        auto start = std::chrono::steady_clock::now();
+        const long n = 10000000; // Количество элементов
+        for (long i = 0; i < n; ++i) {
+            bst.insert(Elem(i));
+        }
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        std::cout << "Вставка " << n << " элементов в ikdr::BinarySearchTree: " << elapsed_seconds.count() << "s\n";
 
-	BinarySearchTree<std::string> T1{ "abc", "cde", "123", "AAAAAAAA" };
-	std::vector<std::string> check1{ "123", "AAAAAAAA", "abc", "cde" };
-	for (std::string s : T1) {
-		std::cout << s << std::endl;
-	}
-	T1.PrintTree();
+    }
 
-	//BinarySearchTree<Elem> tree;
-	
-	return 1;
+
+    return 0;
 }
