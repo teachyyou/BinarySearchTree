@@ -26,7 +26,7 @@ private:
 		Node* left;
 		Node* right;
 		value_type data;
-		int height;
+		char height;
 
 		bool isFake = false;
 

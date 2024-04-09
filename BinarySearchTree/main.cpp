@@ -23,6 +23,8 @@ public:
 };
 size_t Elem::elem_counter = 0;
 
+
+
 int main() {
     setlocale(LC_ALL, "RUS");
     {
@@ -52,4 +54,9 @@ int main() {
 
 
     return 0;
+}
+
+
+void testWithPrint() {
+    
 }
